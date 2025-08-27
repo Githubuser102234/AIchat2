@@ -132,23 +132,20 @@
         // Check for a user ID in the URL on page load
         const urlParams = new URLSearchParams(window.location.search);
         let urlUserId = urlParams.get('userid');
+        const correctPath = '/AIchat2/';
 
         // Listen for authentication state changes
         onAuthStateChanged(auth, async (user) => {
             if (user) {
                 // User is signed in. This is their real, unique ID.
                 const firebaseUid = user.uid;
+                const currentPath = window.location.pathname;
 
-                // Check if the URL user ID matches the Firebase UID
-                if (urlUserId && urlUserId !== firebaseUid) {
-                    // Mismatch detected, redirect to the correct user ID
-                    console.log("URL user ID mismatch. Redirecting to correct user ID.");
-                    window.location.replace(`${window.location.origin}${window.location.pathname}?userid=${firebaseUid}`);
-                    return; // Stop further execution
-                } else if (!urlUserId) {
-                    // No user ID in the URL, redirect to the correct user ID
-                    console.log("No user ID in URL. Redirecting to correct user ID.");
-                    window.location.replace(`${window.location.origin}${window.location.pathname}?userid=${firebaseUid}`);
+                // Check for URL mismatch
+                if (urlUserId !== firebaseUid || currentPath !== correctPath) {
+                    // Mismatch detected, redirect to the correct URL
+                    console.log("URL mismatch. Redirecting to the correct user ID and path.");
+                    window.location.replace(`${window.location.origin}${correctPath}?userid=${firebaseUid}`);
                     return; // Stop further execution
                 }
                 
