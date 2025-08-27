@@ -3,9 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Gemini Chat</title>
+    <title>Secure Gemini Chat</title>
     <!-- Tailwind CSS for modern styling -->
     <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Font Awesome for icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap');
         body {
@@ -19,6 +21,20 @@
             flex-direction: column;
             border-radius: 1.5rem;
             box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+            transition: transform 0.3s ease-in-out;
+        }
+        .sidebar {
+            width: 250px;
+            flex-shrink: 0;
+            background-color: #1f2937;
+            color: white;
+            padding: 1rem;
+            border-right: 1px solid #374151;
+            transform: translateX(-100%);
+            transition: transform 0.3s ease-in-out;
+        }
+        .sidebar.open {
+            transform: translateX(0);
         }
         .message-list {
             flex-grow: 1;
@@ -62,173 +78,374 @@
             text-align: center;
             padding-top: 0.5rem;
         }
+        .login-card {
+            max-width: 400px;
+            width: 90%;
+        }
     </style>
 </head>
 <body class="bg-gray-100 flex items-center justify-center p-4">
 
-    <div class="chat-container bg-white">
-        <!-- Chat Header -->
-        <div class="bg-gray-50 text-center p-4 rounded-t-2xl border-b border-gray-200">
-            <h1 class="text-2xl font-bold text-gray-800">Gemini Chat</h1>
-            <div id="userid-display" class="userid-display"></div>
-        </div>
-
-        <!-- Message List -->
-        <div id="message-list" class="message-list">
-            <!-- Messages will be injected here by JavaScript -->
-        </div>
-
-        <!-- Loading Indicator -->
-        <div id="loading-indicator">
-            <svg class="animate-spin h-5 w-5 text-blue-500 inline-block mr-2" viewBox="0 0 24 24">
-                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-            </svg>
-            <span>Gemini is typing...</span>
-        </div>
-
-        <!-- Input Area -->
-        <div class="input-area">
-            <input type="text" id="message-input" placeholder="Type a message..." class="flex-grow p-3 mr-2 rounded-full border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all">
-            <button id="send-button" class="px-6 py-3 bg-blue-500 text-white rounded-full font-semibold transition-all hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
-                Send
+    <!-- Main Container -->
+    <div class="flex h-screen w-full">
+        <!-- Sidebar for chat history -->
+        <div id="sidebar" class="sidebar absolute h-full z-20">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-xl font-bold">Chats</h2>
+                <button id="close-sidebar" class="text-white hover:text-gray-300">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <button id="new-chat-btn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg mb-4 transition-colors">
+                + New Chat
             </button>
+            <div id="chat-list" class="flex flex-col gap-2 overflow-y-auto">
+                <!-- Chat history items will be populated here -->
+            </div>
+            <button id="sign-out-btn" class="w-full bg-red-600 hover:bg-red-700 text-white font-semibold py-2 px-4 rounded-lg mt-auto transition-colors">
+                Sign Out
+            </button>
+        </div>
+
+        <!-- Login Card (Initially shown) -->
+        <div id="auth-card" class="login-card bg-white p-8 rounded-2xl shadow-lg flex flex-col items-center">
+            <h1 class="text-3xl font-bold mb-6 text-center text-gray-800">Welcome</h1>
+            <p class="text-center text-gray-600 mb-6">Sign in to start chatting with Gemini.</p>
+
+            <!-- Google Sign-In Button -->
+            <button id="google-signin-btn" class="w-full flex items-center justify-center bg-white border border-gray-300 text-gray-700 py-3 px-4 rounded-full font-semibold mb-4 transition-colors hover:bg-gray-100">
+                <i class="fab fa-google mr-2"></i> Sign in with Google
+            </button>
+
+            <div class="w-full flex items-center my-4">
+                <div class="flex-grow border-t border-gray-300"></div>
+                <span class="flex-shrink mx-4 text-gray-500">or</span>
+                <div class="flex-grow border-t border-gray-300"></div>
+            </div>
+
+            <!-- Email/Password Form -->
+            <form id="email-signin-form" class="w-full">
+                <input type="email" id="email-input" placeholder="Email" class="w-full p-3 mb-3 rounded-full border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <input type="password" id="password-input" placeholder="Password" class="w-full p-3 mb-4 rounded-full border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <button type="submit" class="w-full bg-blue-500 text-white py-3 px-4 rounded-full font-semibold transition-colors hover:bg-blue-600">
+                    Sign In
+                </button>
+            </form>
+            <div id="error-message" class="text-red-500 text-sm mt-4 text-center"></div>
+            <button id="toggle-signup" class="text-blue-500 text-sm mt-4">Don't have an account? Sign Up</button>
+        </div>
+        
+        <!-- Chat Interface (Hidden initially) -->
+        <div id="chat-interface" class="chat-container bg-white hidden">
+            <!-- Chat Header -->
+            <div class="bg-gray-50 p-4 rounded-t-2xl border-b border-gray-200 flex items-center justify-between">
+                <button id="burger-menu" class="text-gray-600 hover:text-gray-900 transition-colors">
+                    <i class="fas fa-bars text-xl"></i>
+                </button>
+                <div class="flex-grow text-center">
+                    <h1 class="text-2xl font-bold text-gray-800">Gemini Chat</h1>
+                </div>
+                <div class="w-8"></div> <!-- Spacer to keep title centered -->
+            </div>
+
+            <!-- Message List -->
+            <div id="message-list" class="message-list">
+                <!-- Messages will be injected here by JavaScript -->
+            </div>
+
+            <!-- Loading Indicator -->
+            <div id="loading-indicator">
+                <svg class="animate-spin h-5 w-5 text-blue-500 inline-block mr-2" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                <span>Gemini is typing...</span>
+            </div>
+
+            <!-- Input Area -->
+            <div class="input-area">
+                <input type="text" id="message-input" placeholder="Type a message..." class="flex-grow p-3 mr-2 rounded-full border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all">
+                <button id="send-button" class="px-6 py-3 bg-blue-500 text-white rounded-full font-semibold transition-all hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
+                    Send
+                </button>
+            </div>
         </div>
     </div>
 
-    <!-- Firebase SDKs -->
+    <!-- Firebase and Gemini SDKs -->
     <script type="module">
-        // Import Firebase modules
         import { initializeApp } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-app.js";
-        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-auth.js";
-        import { getDatabase, ref, push, onValue } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-database.js";
+        import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-auth.js";
+        import { getDatabase, ref, push, onValue, get, set, child, remove } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-database.js";
         import { getAI, getGenerativeModel, GoogleAIBackend } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-ai.js";
 
         // Your web app's Firebase configuration
         const firebaseConfig = {
             apiKey: "AIzaSyBRjDsSXvtXn6F7oECMK4e64ZgYnR9SOtM",
             authDomain: "aichat-5792e.firebaseapp.com",
+            databaseURL: "https://aichat-5792e-default-rtdb.firebaseio.com",
             projectId: "aichat-5792e",
             storageBucket: "aichat-5792e.firebasestorage.app",
             messagingSenderId: "520346218831",
-            appId: "1:520346218831:web:deae1e878a38ed2a96153a",
-            databaseURL: "https://aichat-5792e-default-rtdb.firebaseio.com"
+            appId: "1:520346218831:web:deae1e878a38ed2a96153a"
         };
         
         // Initialize Firebase
         const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
         const db = getDatabase(app);
-
-        // Initialize the Gemini Developer API backend service
         const ai = getAI(app, { backend: new GoogleAIBackend() });
         const model = getGenerativeModel(ai, { model: "gemini-2.5-flash" });
 
+        // UI Elements
+        const authCard = document.getElementById('auth-card');
+        const chatInterface = document.getElementById('chat-interface');
+        const googleSignInBtn = document.getElementById('google-signin-btn');
+        const emailSignInForm = document.getElementById('email-signin-form');
+        const emailInput = document.getElementById('email-input');
+        const passwordInput = document.getElementById('password-input');
+        const toggleSignupBtn = document.getElementById('toggle-signup');
+        const errorMessageDiv = document.getElementById('error-message');
+        const signOutBtn = document.getElementById('sign-out-btn');
+        const burgerMenuBtn = document.getElementById('burger-menu');
+        const closeSidebarBtn = document.getElementById('close-sidebar');
+        const sidebar = document.getElementById('sidebar');
+        const newChatBtn = document.getElementById('new-chat-btn');
+        const chatListDiv = document.getElementById('chat-list');
         const messageInput = document.getElementById('message-input');
         const sendButton = document.getElementById('send-button');
         const messageList = document.getElementById('message-list');
         const loadingIndicator = document.getElementById('loading-indicator');
 
-        // Check for a user ID in the URL on page load
-        const urlParams = new URLSearchParams(window.location.search);
-        let urlUserId = urlParams.get('userid');
-        const correctPath = '/AIchat2/';
+        let isSignup = false;
+        let currentChatId = null;
+        let unsubscribeFromMessages = null;
 
-        // Listen for authentication state changes
-        onAuthStateChanged(auth, async (user) => {
+        // --- Authentication Logic ---
+
+        // Google Sign-In
+        googleSignInBtn.addEventListener('click', async () => {
+            const provider = new GoogleAuthProvider();
+            try {
+                await signInWithPopup(auth, provider);
+            } catch (error) {
+                console.error("Google Sign-In error:", error);
+                errorMessageDiv.textContent = `Error: ${error.message}`;
+            }
+        });
+
+        // Email/Password Sign-In or Sign-Up
+        emailSignInForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const email = emailInput.value;
+            const password = passwordInput.value;
+            errorMessageDiv.textContent = ''; // Clear previous errors
+
+            if (isSignup) {
+                try {
+                    await createUserWithEmailAndPassword(auth, email, password);
+                } catch (error) {
+                    console.error("Email Sign-Up error:", error);
+                    errorMessageDiv.textContent = `Error: ${error.message}`;
+                }
+            } else {
+                try {
+                    await signInWithEmailAndPassword(auth, email, password);
+                } catch (error) {
+                    console.error("Email Sign-In error:", error);
+                    errorMessageDiv.textContent = `Error: ${error.message}`;
+                }
+            }
+        });
+
+        // Toggle between Sign In and Sign Up forms
+        toggleSignupBtn.addEventListener('click', () => {
+            isSignup = !isSignup;
+            toggleSignupBtn.textContent = isSignup ? "Already have an account? Sign In" : "Don't have an account? Sign Up";
+            emailSignInForm.querySelector('button').textContent = isSignup ? "Sign Up" : "Sign In";
+        });
+
+        // Sign Out
+        signOutBtn.addEventListener('click', async () => {
+            try {
+                await signOut(auth);
+            } catch (error) {
+                console.error("Sign out error:", error);
+            }
+        });
+        
+        // --- Chat History & UI Management ---
+        
+        // Hamburger menu toggle
+        burgerMenuBtn.addEventListener('click', () => {
+            sidebar.classList.add('open');
+        });
+
+        closeSidebarBtn.addEventListener('click', () => {
+            sidebar.classList.remove('open');
+        });
+
+        // Handle clicks outside the sidebar to close it
+        document.addEventListener('click', (e) => {
+            if (sidebar.classList.contains('open') && !sidebar.contains(e.target) && !burgerMenuBtn.contains(e.target)) {
+                sidebar.classList.remove('open');
+            }
+        });
+
+        // "New Chat" button
+        newChatBtn.addEventListener('click', async () => {
+            const userId = auth.currentUser.uid;
+            // Create a new empty chat node and switch to it
+            const newChatRef = push(ref(db, `users/${userId}/chats`));
+            currentChatId = newChatRef.key;
+            // Clear the message list and update the listener
+            messageList.innerHTML = '';
+            // Close the sidebar and update the UI to the new chat
+            sidebar.classList.remove('open');
+            setupMessageListener(userId, currentChatId);
+        });
+
+        // Function to switch to a specific chat
+        const switchToChat = (chatId) => {
+            currentChatId = chatId;
+            // Close the sidebar and update the message listener
+            sidebar.classList.remove('open');
+            setupMessageListener(auth.currentUser.uid, currentChatId);
+        };
+
+        // Populate the chat list in the sidebar
+        const populateChatList = (userId) => {
+            const chatsRef = ref(db, `users/${userId}/chats`);
+            onValue(chatsRef, (snapshot) => {
+                chatListDiv.innerHTML = ''; // Clear list
+                snapshot.forEach((childSnapshot) => {
+                    const chatId = childSnapshot.key;
+                    const firstMessage = childSnapshot.child('messages').val() ? Object.values(childSnapshot.child('messages').val())[0] : null;
+                    const chatTitle = firstMessage ? firstMessage.text.substring(0, 30) + '...' : 'New Chat';
+                    
+                    const chatItem = document.createElement('div');
+                    chatItem.classList.add('p-3', 'rounded-lg', 'cursor-pointer', 'hover:bg-gray-700', 'transition-colors');
+                    chatItem.textContent = chatTitle;
+                    chatItem.addEventListener('click', () => switchToChat(chatId));
+                    chatListDiv.appendChild(chatItem);
+                });
+            });
+        };
+
+        // --- Core Application Logic (Auth State Changed) ---
+
+        onAuthStateChanged(auth, (user) => {
             if (user) {
-                // User is signed in. This is their real, unique ID.
-                const firebaseUid = user.uid;
-                const currentPath = window.location.pathname;
-
-                // Check for URL mismatch
-                if (urlUserId !== firebaseUid || currentPath !== correctPath) {
-                    // Mismatch detected, redirect to the correct URL
-                    console.log("URL mismatch. Redirecting to the correct user ID and path.");
-                    window.location.replace(`${window.location.origin}${correctPath}?userid=${firebaseUid}`);
-                    return; // Stop further execution
+                // User is signed in. Hide auth UI, show chat UI.
+                authCard.classList.add('hidden');
+                chatInterface.classList.remove('hidden');
+                
+                // Get user ID and populate chat history
+                const userId = user.uid;
+                populateChatList(userId);
+                
+                // Check if a chat ID exists in the URL or create a new one
+                const urlParams = new URLSearchParams(window.location.search);
+                currentChatId = urlParams.get('chatId') || null;
+                
+                // If no chat ID, create a new one
+                if (!currentChatId) {
+                    const newChatRef = push(ref(db, `users/${userId}/chats`));
+                    currentChatId = newChatRef.key;
+                    // Update URL without a full page reload for a clean UX
+                    history.replaceState(null, '', `?chatId=${currentChatId}`);
                 }
                 
-                // Display the user ID
-                document.getElementById('userid-display').textContent = `Your User ID: ${firebaseUid}`;
-                const messagesRef = ref(db, `messages/${firebaseUid}`);
-
-                // Listen for new messages in the database for this specific user ID
-                onValue(messagesRef, (snapshot) => {
-                    messageList.innerHTML = ''; // Clear the current messages
-                    const data = snapshot.val();
-                    if (data) {
-                        // Iterate through the messages and display them
-                        Object.values(data).forEach(msg => {
-                            const messageElement = document.createElement('div');
-                            messageElement.classList.add('message', msg.sender);
-                            messageElement.textContent = msg.text;
-                            messageList.appendChild(messageElement);
-                        });
-                        // Scroll to the bottom of the message list
-                        messageList.scrollTop = messageList.scrollHeight;
-                    }
-                });
-
-                // Function to send a message
-                const sendMessage = async () => {
-                    const text = messageInput.value.trim();
-                    if (text === '') return;
-
-                    // Disable input and show loading indicator
-                    messageInput.disabled = true;
-                    sendButton.disabled = true;
-                    loadingIndicator.style.display = 'block';
-
-                    // 1. Push the user's message to their Firebase chat
-                    const userMessage = {
-                        text: text,
-                        sender: 'user',
-                        timestamp: Date.now()
-                    };
-                    await push(messagesRef, userMessage);
-
-                    // 2. Get AI response from Gemini using the Firebase AI SDK
-                    try {
-                        const result = await model.generateContent(text);
-                        const response = result.response;
-                        const aiText = response.text() || "Sorry, I couldn't generate a response.";
-
-                        // 3. Push Gemini's response to their Firebase chat
-                        const geminiMessage = {
-                            text: aiText,
-                            sender: 'gemini',
-                            timestamp: Date.now()
-                        };
-                        await push(messagesRef, geminiMessage);
-
-                    } catch (error) {
-                        console.error("Gemini API error:", error);
-                        await push(messagesRef, {
-                            text: "Error: I'm unable to connect to the AI service. Please try again.",
-                            sender: 'gemini',
-                            timestamp: Date.now()
-                        });
-                    } finally {
-                        // Re-enable input and hide loading indicator
-                        messageInput.disabled = false;
-                        sendButton.disabled = false;
-                        loadingIndicator.style.display = 'none';
-                        messageInput.value = ''; // Clear input field
-                        messageInput.focus();
-                    }
-                };
-
-                // Event listeners for sending messages
-                sendButton.addEventListener('click', sendMessage);
-                messageInput.addEventListener('keypress', (e) => {
-                    if (e.key === 'Enter') {
-                        sendMessage();
-                    }
-                });
+                // Set up the message listener for the current chat
+                setupMessageListener(userId, currentChatId);
             } else {
-                // No user is signed in, sign in anonymously
-                await signInAnonymously(auth);
+                // User is signed out. Hide chat UI, show auth UI.
+                authCard.classList.remove('hidden');
+                chatInterface.classList.add('hidden');
+            }
+        });
+
+        // Function to set up the Realtime Database listener for messages
+        const setupMessageListener = (userId, chatId) => {
+            // Unsubscribe from the previous listener to prevent memory leaks
+            if (unsubscribeFromMessages) {
+                unsubscribeFromMessages();
+            }
+
+            const messagesRef = ref(db, `users/${userId}/chats/${chatId}/messages`);
+            unsubscribeFromMessages = onValue(messagesRef, (snapshot) => {
+                messageList.innerHTML = ''; // Clear the current messages
+                const data = snapshot.val();
+                if (data) {
+                    // Iterate through the messages and display them
+                    Object.values(data).forEach(msg => {
+                        const messageElement = document.createElement('div');
+                        messageElement.classList.add('message', msg.sender);
+                        messageElement.textContent = msg.text;
+                        messageList.appendChild(messageElement);
+                    });
+                    messageList.scrollTop = messageList.scrollHeight;
+                }
+            });
+        };
+
+        // Function to send a message
+        const sendMessage = async () => {
+            const text = messageInput.value.trim();
+            if (text === '' || !currentChatId) return;
+
+            // Disable input and show loading indicator
+            messageInput.disabled = true;
+            sendButton.disabled = true;
+            loadingIndicator.style.display = 'block';
+
+            const userId = auth.currentUser.uid;
+            const messagesRef = ref(db, `users/${userId}/chats/${currentChatId}/messages`);
+
+            // 1. Push the user's message to their Firebase chat
+            const userMessage = {
+                text: text,
+                sender: 'user',
+                timestamp: Date.now()
+            };
+            await push(messagesRef, userMessage);
+
+            // 2. Get AI response from Gemini
+            try {
+                const result = await model.generateContent(text);
+                const response = result.response;
+                const aiText = response.text() || "Sorry, I couldn't generate a response.";
+
+                // 3. Push Gemini's response to their Firebase chat
+                const geminiMessage = {
+                    text: aiText,
+                    sender: 'gemini',
+                    timestamp: Date.now()
+                };
+                await push(messagesRef, geminiMessage);
+
+            } catch (error) {
+                console.error("Gemini API error:", error);
+                await push(messagesRef, {
+                    text: "Error: I'm unable to connect to the AI service. Please try again.",
+                    sender: 'gemini',
+                    timestamp: Date.now()
+                });
+            } finally {
+                // Re-enable input and hide loading indicator
+                messageInput.disabled = false;
+                sendButton.disabled = false;
+                loadingIndicator.style.display = 'none';
+                messageInput.value = ''; // Clear input field
+                messageInput.focus();
+            }
+        };
+
+        // Event listeners for sending messages
+        sendButton.addEventListener('click', sendMessage);
+        messageInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                sendMessage();
             }
         });
     </script>
