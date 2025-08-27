@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gemini Chat</title>
+    <!-- Tailwind CSS for modern styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f3f4f6;
+        }
+        .chat-container {
+            max-width: 600px;
+            height: 90vh;
+            display: flex;
+            flex-direction: column;
+            border-radius: 1.5rem;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+        }
+        .message-list {
+            flex-grow: 1;
+            overflow-y: auto;
+            padding: 1rem;
+            display: flex;
+            flex-direction: column;
+        }
+        .message {
+            max-width: 80%;
+            padding: 0.75rem 1rem;
+            margin-bottom: 0.5rem;
+            border-radius: 1.25rem;
+        }
+        .message.user {
+            background-color: #3b82f6;
+            color: white;
+            align-self: flex-end;
+            border-bottom-right-radius: 0.25rem;
+        }
+        .message.gemini {
+            background-color: #e5e7eb;
+            color: #1f2937;
+            align-self: flex-start;
+            border-bottom-left-radius: 0.25rem;
+        }
+        .input-area {
+            display: flex;
+            padding: 1rem;
+            border-top: 1px solid #e5e7eb;
+        }
+        #loading-indicator {
+            display: none;
+            text-align: center;
+            padding: 1rem;
+            color: #6b7280;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 flex items-center justify-center p-4">
+
+    <div class="chat-container bg-white">
+        <!-- Chat Header -->
+        <div class="bg-gray-50 text-center p-4 rounded-t-2xl border-b border-gray-200">
+            <h1 class="text-2xl font-bold text-gray-800">Gemini Chat</h1>
+        </div>
+
+        <!-- Message List -->
+        <div id="message-list" class="message-list">
+            <!-- Messages will be injected here by JavaScript -->
+        </div>
+
+        <!-- Loading Indicator -->
+        <div id="loading-indicator">
+            <svg class="animate-spin h-5 w-5 text-blue-500 inline-block mr-2" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+            <span>Gemini is typing...</span>
+        </div>
+
+        <!-- Input Area -->
+        <div class="input-area">
+            <input type="text" id="message-input" placeholder="Type a message..." class="flex-grow p-3 mr-2 rounded-full border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all">
+            <button id="send-button" class="px-6 py-3 bg-blue-500 text-white rounded-full font-semibold transition-all hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
+                Send
+            </button>
+        </div>
+    </div>
+
+    <!-- Firebase SDKs -->
+    <script type="module">
+        // Import Firebase modules
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-app.js";
+        import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-auth.js";
+        import { getDatabase, ref, push, onValue } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-database.js";
+        import { getAI, getGenerativeModel, GoogleAIBackend } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-ai.js";
+
+        // Your web app's Firebase configuration
+        const firebaseConfig = {
+            apiKey: "AIzaSyBRjDsSXvtXn6F7oECMK4e64ZgYnR9SOtM",
+            authDomain: "aichat-5792e.firebaseapp.com",
+            projectId: "aichat-5792e",
+            storageBucket: "aichat-5792e.firebasestorage.app",
+            messagingSenderId: "520346218831",
+            appId: "1:520346218831:web:deae1e878a38ed2a96153a",
+            databaseURL: "https://aichat-5792e-default-rtdb.firebaseio.com"
+        };
+        
+        // Initialize Firebase
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getDatabase(app);
+        const messagesRef = ref(db, 'messages');
+
+        // Initialize the Gemini Developer API backend service
+        const ai = getAI(app, { backend: new GoogleAIBackend() });
+        const model = getGenerativeModel(ai, { model: "gemini-2.5-flash" });
+
+        const messageInput = document.getElementById('message-input');
+        const sendButton = document.getElementById('send-button');
+        const messageList = document.getElementById('message-list');
+        const loadingIndicator = document.getElementById('loading-indicator');
+
+        // Sign in anonymously to enable Realtime Database access
+        signInAnonymously(auth).then(() => {
+            console.log("Signed in anonymously.");
+            
+            // Listen for new messages in the database
+            onValue(messagesRef, (snapshot) => {
+                messageList.innerHTML = ''; // Clear the current messages
+                const data = snapshot.val();
+                if (data) {
+                    // Iterate through the messages and display them
+                    Object.values(data).forEach(msg => {
+                        const messageElement = document.createElement('div');
+                        messageElement.classList.add('message', msg.sender);
+                        messageElement.textContent = msg.text;
+                        messageList.appendChild(messageElement);
+                    });
+                    // Scroll to the bottom of the message list
+                    messageList.scrollTop = messageList.scrollHeight;
+                }
+            });
+
+        }).catch((error) => {
+            console.error("Firebase Auth error:", error);
+            alert("Failed to sign in. Check console for details.");
+        });
+
+        // Function to send a message
+        const sendMessage = async () => {
+            const text = messageInput.value.trim();
+            if (text === '') return;
+
+            // Disable input and show loading indicator
+            messageInput.disabled = true;
+            sendButton.disabled = true;
+            loadingIndicator.style.display = 'block';
+
+            // 1. Push the user's message to Firebase
+            const userMessage = {
+                text: text,
+                sender: 'user',
+                timestamp: Date.now()
+            };
+            await push(messagesRef, userMessage);
+
+            // 2. Get AI response from Gemini using the Firebase AI SDK
+            try {
+                const result = await model.generateContent(text);
+                const response = result.response;
+                const aiText = response.text() || "Sorry, I couldn't generate a response.";
+
+                // 3. Push Gemini's response to Firebase
+                const geminiMessage = {
+                    text: aiText,
+                    sender: 'gemini',
+                    timestamp: Date.now()
+                };
+                await push(messagesRef, geminiMessage);
+
+            } catch (error) {
+                console.error("Gemini API error:", error);
+                await push(messagesRef, {
+                    text: "Error: I'm unable to connect to the AI service. Please try again.",
+                    sender: 'gemini',
+                    timestamp: Date.now()
+                });
+            } finally {
+                // Re-enable input and hide loading indicator
+                messageInput.disabled = false;
+                sendButton.disabled = false;
+                loadingIndicator.style.display = 'none';
+                messageInput.value = ''; // Clear input field
+                messageInput.focus();
+            }
+        };
+
+        // Event listeners for sending messages
+        sendButton.addEventListener('click', sendMessage);
+        messageInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                sendMessage();
+            }
+        });
+    </script>
+</body>
+</html>
