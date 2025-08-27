@@ -56,6 +56,12 @@
             padding: 1rem;
             color: #6b7280;
         }
+        .userid-display {
+            font-size: 0.75rem;
+            color: #6b7280;
+            text-align: center;
+            padding-top: 0.5rem;
+        }
     </style>
 </head>
 <body class="bg-gray-100 flex items-center justify-center p-4">
@@ -64,6 +70,7 @@
         <!-- Chat Header -->
         <div class="bg-gray-50 text-center p-4 rounded-t-2xl border-b border-gray-200">
             <h1 class="text-2xl font-bold text-gray-800">Gemini Chat</h1>
+            <div id="userid-display" class="userid-display"></div>
         </div>
 
         <!-- Message List -->
@@ -112,11 +119,24 @@
         const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
         const db = getDatabase(app);
-        const messagesRef = ref(db, 'messages');
 
         // Initialize the Gemini Developer API backend service
         const ai = getAI(app, { backend: new GoogleAIBackend() });
         const model = getGenerativeModel(ai, { model: "gemini-2.5-flash" });
+
+        // Get user ID from URL or generate a new one
+        const urlParams = new URLSearchParams(window.location.search);
+        let userId = urlParams.get('userid');
+
+        // If no user ID is in the URL, create a new one and redirect
+        if (!userId) {
+            userId = crypto.randomUUID();
+            window.location.href = `/?userid=${userId}`;
+        }
+        
+        // Display the user ID
+        document.getElementById('userid-display').textContent = `Your User ID: ${userId}`;
+        const messagesRef = ref(db, `messages/${userId}`);
 
         const messageInput = document.getElementById('message-input');
         const sendButton = document.getElementById('send-button');
@@ -127,7 +147,7 @@
         signInAnonymously(auth).then(() => {
             console.log("Signed in anonymously.");
             
-            // Listen for new messages in the database
+            // Listen for new messages in the database for this specific user ID
             onValue(messagesRef, (snapshot) => {
                 messageList.innerHTML = ''; // Clear the current messages
                 const data = snapshot.val();
@@ -146,7 +166,10 @@
 
         }).catch((error) => {
             console.error("Firebase Auth error:", error);
-            alert("Failed to sign in. Check console for details.");
+            // Re-enable input fields even if auth fails
+            messageInput.disabled = false;
+            sendButton.disabled = false;
+            loadingIndicator.style.display = 'none';
         });
 
         // Function to send a message
@@ -159,7 +182,7 @@
             sendButton.disabled = true;
             loadingIndicator.style.display = 'block';
 
-            // 1. Push the user's message to Firebase
+            // 1. Push the user's message to their Firebase chat
             const userMessage = {
                 text: text,
                 sender: 'user',
@@ -173,7 +196,7 @@
                 const response = result.response;
                 const aiText = response.text() || "Sorry, I couldn't generate a response.";
 
-                // 3. Push Gemini's response to Firebase
+                // 3. Push Gemini's response to their Firebase chat
                 const geminiMessage = {
                     text: aiText,
                     sender: 'gemini',
